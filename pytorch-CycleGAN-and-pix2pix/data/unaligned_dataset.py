@@ -73,7 +73,9 @@ class UnalignedDataset(BaseDataset):
             flows (tensor)        -- precomputed dense optical flow from frame index to index+1, shape=(H, W, 2)
             confidences (tensor)  -- confidence mask of optical flow, shape=(1, H, W)
         """
-        A_path = self.A_paths[index % self.A_size]  # make sure index is within then range
+        # We want B to be serial, but don't want fixed pairs, so shuffle A
+        index_A = random.randint(0, self.A_size - 1)
+        A_path = self.A_paths[index_A]
         if self.opt.serial_batches:   # make sure index is within then range
             index_B = index % self.B_size
         else:   # randomize the index for domain B to avoid fixed pairs.
