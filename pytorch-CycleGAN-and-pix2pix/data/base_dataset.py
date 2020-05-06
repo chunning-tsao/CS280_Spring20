@@ -78,17 +78,17 @@ def get_params(opt, size):
     return {'crop_pos': (x, y), 'flip': flip}
 
 
-def get_transform(opt, params=None, grayscale=False, method=Image.BICUBIC, convert=True):
+def get_transform(opt, params=None, grayscale=False, method=Image.BICUBIC, convert=True, fixed=False):
     transform_list = []
     if grayscale:
         transform_list.append(transforms.Grayscale(1))
-    if 'resize' in opt.preprocess:
+    if 'resize' in opt.preprocess and not fixed:
         osize = [opt.load_size, opt.load_size]
         transform_list.append(transforms.Resize(osize, method))
-    elif 'scale_width' in opt.preprocess:
+    elif 'scale_width' in opt.preprocess and not fixed:
         transform_list.append(transforms.Lambda(lambda img: __scale_width(img, opt.load_size, opt.crop_size, method)))
 
-    if 'crop' in opt.preprocess:
+    if 'crop' in opt.preprocess and not fixed:
         if params is None:
             transform_list.append(transforms.RandomCrop(opt.crop_size))
         else:
@@ -97,7 +97,7 @@ def get_transform(opt, params=None, grayscale=False, method=Image.BICUBIC, conve
     if opt.preprocess == 'none':
         transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=4, method=method)))
 
-    if not opt.no_flip:
+    if not opt.no_flip and not fixed:
         if params is None:
             transform_list.append(transforms.RandomHorizontalFlip())
         elif params['flip']:
