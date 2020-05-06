@@ -5,7 +5,7 @@ from .base_model import BaseModel
 from . import networks
 import numpy as np
 
-def warp(x, flow):
+def warp(x, flow, device):
     """
     warp x according to optical flow
     =====
@@ -13,6 +13,7 @@ def warp(x, flow):
         x (tensor): input frames, shape=(N, 3, H, W), dtype=float
         flow (tensor): dense optical flow from frame t to t+1, shape=(N, H, W, 2),
             calcuated by cal_optical_flow()
+        device (str): device name - CPU or GPU
     Returns:
         warp_x (tensor): warpped frame, shape=(N, 3, H, W), dtype=float
     """
@@ -20,11 +21,11 @@ def warp(x, flow):
     H, W = x.shape[2], x.shape[3]
     flow[..., 0] = flow[..., 0] / W
     flow[..., 1] = flow[..., 1] / H
-    basic_grid = torch.from_numpy(np.stack(np.meshgrid(np.linspace(-1,1,W), np.linspace(-1,1,H)))).float().to(device)
+    basic_grid = torch.from_numpy(np.stack(np.meshgrid(np.linspace(-1,1,W), np.linspace(-1,1,H)))).float().to(self.device)
     basic_grid = basic_grid.permute(1, 2, 0)
     basic_grid = basic_grid[None, ...]
     flow = flow + basic_grid
-    warp_x = nn.functional.grid_sample(x, flow, align_corners=True)
+    warp_x = torch.nn.functional.grid_sample(x, flow, align_corners=True)
     return warp_x
 
 def temporal_loss(x, warp_x, confidences):
@@ -156,8 +157,8 @@ class CycleGANModel(BaseModel):
         self.rec_B = self.netG_A(self.fake_A)   # G_A(G_B(B))
 
         # warp images according to precomputed optical flows
-        self.warp_fake_A = warp(self.fake_A, self.flows)
-        self.warp_rec_B = warp(self.rec_B, self.flows)
+        self.warp_fake_A = warp(self.fake_A, self.flows, self.device)
+        self.warp_rec_B = warp(self.rec_B, self.flows, self.device)
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator

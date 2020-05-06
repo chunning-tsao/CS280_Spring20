@@ -1,10 +1,10 @@
-import re.findall
-import os.path
+import re
+import os
+import random
 from data.base_dataset import BaseDataset, get_transform
 from data.image_folder import make_dataset
 from PIL import Image
-import random
-
+import torch
 
 class UnalignedDataset(BaseDataset):
     """
@@ -45,7 +45,7 @@ class UnalignedDataset(BaseDataset):
         self.dir_flows = os.path.join(opt.dataroot, 'flows')  # create a path '/path/to/data/flows'
         flow_paths = [os.path.join(self.dir_flows, f)
                       for f in os.listdir(self.dir_flows)
-                      if isfile(os.path.join(self.dir_flows, f)) and f.endswith('pt')]
+                      if os.path.isfile(os.path.join(self.dir_flows, f)) and f.endswith('pt')]
         flow_paths.sort(key=lambda f: int(re.findall('\d+', f)[-1]))
         self.flow_paths = flow_paths
         self.flow_size = len(self.flow_paths)
@@ -53,7 +53,7 @@ class UnalignedDataset(BaseDataset):
         self.dir_confidences = os.path.join(opt.dataroot, 'confidences')
         confidence_paths = [os.path.join(self.dir_confidences, f)
                             for f in os.listdir(self.dir_confidences)
-                            if isfile(os.path.join(self.dir_confidences, f)) and f.endswith('pt')]
+                            if os.path.isfile(os.path.join(self.dir_confidences, f)) and f.endswith('pt')]
         confidence_paths.sort(key=lambda f: int(re.findall('\d+', f)[-1]))
         self.confidence_paths = confidence_paths
         self.confidence_size = len(self.confidence_paths)
