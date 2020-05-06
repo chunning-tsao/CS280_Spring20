@@ -3,7 +3,43 @@ import itertools
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
+import numpy as np
 
+def warp(x, flow):
+    """
+    warp x according to optical flow
+    =====
+    Args:
+        x (tensor): input frames, shape=(N, 3, H, W), dtype=float
+        flow (tensor): dense optical flow from frame t to t+1, shape=(N, H, W, 2),
+            calcuated by cal_optical_flow()
+    Returns:
+        warp_x (tensor): warpped frame, shape=(N, 3, H, W), dtype=float
+    """
+    flow = flow.clone()
+    H, W = x.shape[2], x.shape[3]
+    flow[..., 0] = flow[..., 0] / W
+    flow[..., 1] = flow[..., 1] / H
+    basic_grid = torch.from_numpy(np.stack(np.meshgrid(np.linspace(-1,1,W), np.linspace(-1,1,H)))).float().to(device)
+    basic_grid = basic_grid.permute(1, 2, 0)
+    basic_grid = basic_grid[None, ...]
+    flow = flow + basic_grid
+    warp_x = nn.functional.grid_sample(x, flow, align_corners=True)
+    return warp_x
+
+def temporal_loss(x, warp_x, confidences):
+    """
+    Ref: Huang, Haozhi, et al. "Real-time neural style transfer for videos." CVPR 2017.
+    =====
+    Args:
+    x (tensor): input frames, shape=(N, 3, H, W), dtype=float
+    warp_x (tensor): warpped frame, shape=(N, 3, H, W), dtype=float
+    confidences (tensor): confidence mask of optical flow, shape=(N, 1, H, W)
+    Returns:
+        loss (tensor): the temporal loss over x (not divided by N)
+    """
+    D = x.view(1, -1).shape[-1] # D = C * H * W
+    return (confidences * (x - warp_x) ** 2).sum() / D
 
 class CycleGANModel(BaseModel):
     """
@@ -108,6 +144,8 @@ class CycleGANModel(BaseModel):
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        self.flows = input['flows'].to(self.device)
+        self.confidences = input['confidences'].to(self.device)
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
