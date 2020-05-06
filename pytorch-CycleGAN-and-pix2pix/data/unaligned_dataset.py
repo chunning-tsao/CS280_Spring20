@@ -1,3 +1,4 @@
+import re.findall
 import os.path
 from data.base_dataset import BaseDataset, get_transform
 from data.image_folder import make_dataset
@@ -26,8 +27,12 @@ class UnalignedDataset(BaseDataset):
         self.dir_A = os.path.join(opt.dataroot, opt.phase + 'A')  # create a path '/path/to/data/trainA'
         self.dir_B = os.path.join(opt.dataroot, opt.phase + 'B')  # create a path '/path/to/data/trainB'
 
-        self.A_paths = sorted(make_dataset(self.dir_A, opt.max_dataset_size))   # load images from '/path/to/data/trainA'
-        self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
+        # load images from '/path/to/data/trainA'
+        self.A_paths = sorted(make_dataset(self.dir_A, opt.max_dataset_size),
+                              key=lambda f: int(re.findall('\d+', f)[-1]))
+        # load images from '/path/to/data/trainB'
+        self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size),
+                              key=lambda f: int(re.findall('\d+', f)[-1]))
         self.A_size = len(self.A_paths)  # get the size of dataset A
         self.B_size = len(self.B_paths)  # get the size of dataset B
         btoA = self.opt.direction == 'BtoA'
@@ -36,17 +41,37 @@ class UnalignedDataset(BaseDataset):
         self.transform_A = get_transform(self.opt, grayscale=(input_nc == 1))
         self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1))
 
+        # read in paths for precomputed optical flows and confidence masks
+        self.dir_flows = os.path.join(opt.dataroot, 'flows')  # create a path '/path/to/data/flows'
+        flow_paths = [os.path.join(self.dir_flows, f)
+                      for f in os.listdir(self.dir_flows)
+                      if isfile(os.path.join(self.dir_flows, f)) and f.endswith('pt')]
+        flow_paths.sort(key=lambda f: int(re.findall('\d+', f)[-1]))
+        self.flow_paths = flow_paths
+        self.flow_size = len(self.flow_paths)
+
+        self.dir_confidences = os.path.join(opt.dataroot, 'confidences')
+        confidence_paths = [os.path.join(self.dir_confidences, f)
+                            for f in os.listdir(self.dir_confidences)
+                            if isfile(os.path.join(self.dir_confidences, f)) and f.endswith('pt')]
+        confidence_paths.sort(key=lambda f: int(re.findall('\d+', f)[-1]))
+        self.confidence_paths = confidence_paths
+        self.confidence_size = len(self.confidence_paths)
+
+
     def __getitem__(self, index):
         """Return a data point and its metadata information.
 
         Parameters:
             index (int)      -- a random integer for data indexing
 
-        Returns a dictionary that contains A, B, A_paths and B_paths
-            A (tensor)       -- an image in the input domain
-            B (tensor)       -- its corresponding image in the target domain
-            A_paths (str)    -- image paths
-            B_paths (str)    -- image paths
+        Returns a dictionary that contains A, B, A_paths, B_paths, flows and confs
+            A (tensor)            -- an image in the input domain
+            B (tensor)            -- its corresponding image in the target domain
+            A_paths (str)         -- image paths
+            B_paths (str)         -- image paths
+            flows (tensor)        -- precomputed dense optical flow from frame index to index+1, shape=(H, W, 2)
+            confidences (tensor)  -- confidence mask of optical flow, shape=(1, H, W)
         """
         A_path = self.A_paths[index % self.A_size]  # make sure index is within then range
         if self.opt.serial_batches:   # make sure index is within then range
@@ -60,7 +85,11 @@ class UnalignedDataset(BaseDataset):
         A = self.transform_A(A_img)
         B = self.transform_B(B_img)
 
-        return {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path}
+        flow_path = self.flow_paths[index % self.flow_size]
+        flow = torch.load(flow_path)
+        confidence_path = self.confidence_paths[index % self.confidence_size]
+        confidence = torch.load(confidence_path)
+        return {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path, 'flows': flow, 'confidences': confidence}
 
     def __len__(self):
         """Return the total number of images in the dataset.
