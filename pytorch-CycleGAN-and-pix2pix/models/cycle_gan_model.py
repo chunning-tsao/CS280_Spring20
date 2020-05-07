@@ -21,7 +21,7 @@ def warp(x, flow, device):
     H, W = x.shape[2], x.shape[3]
     flow[..., 0] = flow[..., 0] / W
     flow[..., 1] = flow[..., 1] / H
-    basic_grid = torch.from_numpy(np.stack(np.meshgrid(np.linspace(-1,1,W), np.linspace(-1,1,H)))).float().to(self.device)
+    basic_grid = torch.from_numpy(np.stack(np.meshgrid(np.linspace(-1,1,W), np.linspace(-1,1,H)))).float().to(device)
     basic_grid = basic_grid.permute(1, 2, 0)
     basic_grid = basic_grid[None, ...]
     flow = flow + basic_grid
@@ -218,7 +218,7 @@ class CycleGANModel(BaseModel):
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         # Add temporal loss
-        lambda_tem = 200 # a weight for temporal loss
+        lambda_tem = 100 # a weight for temporal loss
         self.loss_temp_fake_A = self.criterionTemp(self.fake_A[:-1], self.warp_fake_A[1:], self.confidences[1:]).detach() * lambda_tem
         self.loss_temp_rec_B = self.criterionTemp(self.rec_B[:-1], self.warp_rec_B[1:], self.confidences[1:]).detach() * lambda_tem
 
